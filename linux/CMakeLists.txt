@@ -38,8 +38,10 @@ target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 # dependencies here.
 target_include_directories(${PLUGIN_NAME} INTERFACE
   "${CMAKE_CURRENT_SOURCE_DIR}/include")
+pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter)
 target_link_libraries(${PLUGIN_NAME} PRIVATE PkgConfig::GTK)
+target_link_libraries(${PLUGIN_NAME} PRIVATE PkgConfig::GIO)
 
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
@@ -84,6 +86,7 @@ apply_standard_settings(${TEST_RUNNER})
 target_include_directories(${TEST_RUNNER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(${TEST_RUNNER} PRIVATE flutter)
 target_link_libraries(${TEST_RUNNER} PRIVATE PkgConfig::GTK)
+target_link_libraries(${TEST_RUNNER} PRIVATE PkgConfig::GIO)
 target_link_libraries(${TEST_RUNNER} PRIVATE gtest_main gmock)
 
 # Enable automatic test discovery.

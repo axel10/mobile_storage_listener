@@ -27,5 +27,22 @@ TEST(MobileStorageListenerPlugin, GetPlatformVersion) {
   EXPECT_THAT(fl_value_get_string(result), testing::StartsWith("Linux "));
 }
 
+TEST(MobileStorageListenerPlugin, CreateStorageEvent) {
+  g_autoptr(FlValue) event = create_storage_event("mounted", "/media/usb");
+
+  ASSERT_NE(event, nullptr);
+  ASSERT_EQ(fl_value_get_type(event), FL_VALUE_TYPE_MAP);
+
+  FlValue* type = fl_value_lookup_string(event, "type");
+  ASSERT_NE(type, nullptr);
+  ASSERT_EQ(fl_value_get_type(type), FL_VALUE_TYPE_STRING);
+  EXPECT_STREQ(fl_value_get_string(type), "mounted");
+
+  FlValue* path = fl_value_lookup_string(event, "path");
+  ASSERT_NE(path, nullptr);
+  ASSERT_EQ(fl_value_get_type(path), FL_VALUE_TYPE_STRING);
+  EXPECT_STREQ(fl_value_get_string(path), "/media/usb");
+}
+
 }  // namespace test
 }  // namespace mobile_storage_listener

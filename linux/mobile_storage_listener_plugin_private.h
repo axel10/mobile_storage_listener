@@ -8,3 +8,6 @@
 
 // Handles the getPlatformVersion method call.
 FlMethodResponse *get_platform_version();
+
+// Builds a platform event payload for storage changes.
+FlValue *create_storage_event(const gchar *type, const gchar *path);
