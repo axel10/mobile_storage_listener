@@ -102,10 +102,6 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
       return volume.path
     }
 
-    if let volume = notification.userInfo?[NSWorkspace.volumeURLKey] as? URL {
-      return volume.path
-    }
-
     return nil
   }
 }
