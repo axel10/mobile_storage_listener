@@ -67,6 +67,8 @@ set(TEST_RUNNER "${PROJECT_NAME}_test")
 enable_testing()
 
 # Add the Google Test dependency.
+# Newer CMake releases reject older projects unless this policy minimum is set.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(FetchContent)
 FetchContent_Declare(
   googletest
