@@ -1,21 +1,22 @@
 PODS:
   - FlutterMacOS (1.0.0)
   - mobile_storage_listener (0.0.1):
+    - Flutter
     - FlutterMacOS
 
 DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
-  - mobile_storage_listener (from `Flutter/ephemeral/.symlinks/plugins/mobile_storage_listener/macos`)
+  - mobile_storage_listener (from `Flutter/ephemeral/.symlinks/plugins/mobile_storage_listener/darwin`)
 
 EXTERNAL SOURCES:
   FlutterMacOS:
     :path: Flutter/ephemeral
   mobile_storage_listener:
-    :path: Flutter/ephemeral/.symlinks/plugins/mobile_storage_listener/macos
+    :path: Flutter/ephemeral/.symlinks/plugins/mobile_storage_listener/darwin
 
 SPEC CHECKSUMS:
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  mobile_storage_listener: 36a1956bd73dc8013a82bb1e115aef741e718732
+  mobile_storage_listener: 5455a6a58c233766924bdbcd16c177ac96370db9
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
 
