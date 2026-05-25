@@ -14,7 +14,7 @@ A new Flutter plugin project.
   s.author           = { 'Your Company' => 'email@example.com' }
 
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
+  s.source_files     = 'mobile_storage_listener/Sources/mobile_storage_listener/**/*.swift'
 
   s.ios.dependency 'Flutter'
   s.osx.dependency 'FlutterMacOS'
@@ -25,5 +25,5 @@ A new Flutter plugin project.
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.swift_version = '5.0'
 
-  s.resource_bundles = {'mobile_storage_listener_privacy' => ['Resources/PrivacyInfo.xcprivacy']}
+  s.resource_bundles = {'mobile_storage_listener_privacy' => ['mobile_storage_listener/Sources/mobile_storage_listener/Resources/PrivacyInfo.xcprivacy']}
 end
