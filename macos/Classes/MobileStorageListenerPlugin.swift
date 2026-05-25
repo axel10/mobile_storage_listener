@@ -5,6 +5,7 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
   private var eventSink: FlutterEventSink?
   private var mountObserver: NSObjectProtocol?
   private var unmountObserver: NSObjectProtocol?
+  private var knownDrives = Set<String>()
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let methodChannel = FlutterMethodChannel(
@@ -37,14 +38,38 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
     eventSink events: @escaping FlutterEventSink
   ) -> FlutterError? {
     eventSink = events
+    populateKnownDrives()
     startObserving()
     return nil
   }
 
   public func onCancel(withArguments arguments: Any?) -> FlutterError? {
     stopObserving()
+    knownDrives.removeAll()
     eventSink = nil
     return nil
+  }
+
+  private func populateKnownDrives() {
+    knownDrives.removeAll()
+    let keys: [URLResourceKey] = [.volumeIsRemovableKey, .volumeIsInternalKey, .volumeIsLocalKey]
+    let paths = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
+    for url in paths {
+      if isExternalVolume(url) {
+        knownDrives.insert(url.path)
+      }
+    }
+  }
+
+  private func isExternalVolume(_ url: URL) -> Bool {
+    let keys: Set<URLResourceKey> = [.volumeIsRemovableKey, .volumeIsInternalKey, .volumeIsLocalKey]
+    guard let values = try? url.resourceValues(forKeys: keys) else {
+      return false
+    }
+    let isRemovable = values.volumeIsRemovable ?? false
+    let isInternal = values.volumeIsInternal ?? true
+    let isLocal = values.volumeIsLocal ?? false
+    return isRemovable || (!isInternal && isLocal)
   }
 
   private func startObserving() {
@@ -90,18 +115,28 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
       return
     }
 
-    let path = volumePath(from: notification)
-    eventSink([
-      "type": type,
-      "path": path,
-    ])
-  }
-
-  private func volumePath(from notification: Notification) -> String? {
-    if let volume = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL {
-      return volume.path
+    guard let volumeURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else {
+      return
     }
 
-    return nil
+    let path = volumeURL.path
+
+    if type == "mounted" {
+      if isExternalVolume(volumeURL) {
+        knownDrives.insert(path)
+        eventSink([
+          "type": type,
+          "path": path,
+        ])
+      }
+    } else if type == "unmounted" {
+      if knownDrives.contains(path) {
+        knownDrives.remove(path)
+        eventSink([
+          "type": type,
+          "path": path,
+        ])
+      }
+    }
   }
 }

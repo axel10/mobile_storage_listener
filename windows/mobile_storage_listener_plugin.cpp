@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <dbt.h>
 #include <sstream>
+#include <winioctl.h>
 
 namespace mobile_storage_listener {
 namespace {
@@ -22,6 +23,54 @@ std::string WideToUtf8(const std::wstring& value) {
   WideCharToMultiByte(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
                       result.data(), size_needed, nullptr, nullptr);
   return result;
+}
+
+bool IsExternalOrRemovableDrive(const std::wstring& drive) {
+  UINT type = GetDriveTypeW(drive.c_str());
+  if (type == DRIVE_REMOVABLE) {
+    return true;
+  }
+  if (type != DRIVE_FIXED) {
+    return false;
+  }
+
+  std::wstring device_path = L"\\\\.\\" + drive.substr(0, 2);
+  HANDLE handle = CreateFileW(
+      device_path.c_str(),
+      0,
+      FILE_SHARE_READ | FILE_SHARE_WRITE,
+      nullptr,
+      OPEN_EXISTING,
+      0,
+      nullptr);
+  if (handle == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+
+  STORAGE_PROPERTY_QUERY query = {};
+  query.PropertyId = StorageDeviceProperty;
+  query.QueryType = PropertyStandardQuery;
+
+  STORAGE_DEVICE_DESCRIPTOR descriptor = {};
+  DWORD bytes_returned = 0;
+  bool is_external = false;
+
+  if (DeviceIoControl(
+          handle,
+          IOCTL_STORAGE_QUERY_PROPERTY,
+          &query,
+          sizeof(query),
+          &descriptor,
+          sizeof(descriptor),
+          &bytes_returned,
+          nullptr)) {
+    if (descriptor.BusType == BusTypeUsb || descriptor.BusType == BusType1394) {
+      is_external = true;
+    }
+  }
+
+  CloseHandle(handle);
+  return is_external;
 }
 
 }  // namespace
@@ -140,7 +189,7 @@ std::optional<LRESULT> MobileStorageListenerPlugin::HandleWindowProc(
     for (const auto& drive : drives) {
       const bool is_known_drive = IsKnownDrive(drive);
       if (wparam == DBT_DEVICEARRIVAL) {
-        if (GetDriveTypeW(drive.c_str()) != DRIVE_REMOVABLE) {
+        if (!IsExternalOrRemovableDrive(drive)) {
           continue;
         }
 
@@ -153,7 +202,7 @@ std::optional<LRESULT> MobileStorageListenerPlugin::HandleWindowProc(
         continue;
       }
 
-      EmitEvent("removed", WideToUtf8(drive));
+      EmitEvent("unmounted", WideToUtf8(drive));
       RemoveKnownDrive(drive);
     }
 
@@ -181,7 +230,7 @@ std::vector<std::wstring> MobileStorageListenerPlugin::GetRemovableDrives() cons
   const auto drive_letters = GetDriveLettersFromMask(mask);
 
   for (const auto& drive : drive_letters) {
-    if (GetDriveTypeW(drive.c_str()) == DRIVE_REMOVABLE) {
+    if (IsExternalOrRemovableDrive(drive)) {
       drives.push_back(drive);
     }
   }

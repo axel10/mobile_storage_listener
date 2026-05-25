@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_test/src/mock_event_channel.dart';
 import 'package:mobile_storage_listener/mobile_storage_event.dart';
 import 'package:mobile_storage_listener/mobile_storage_listener_method_channel.dart';
 

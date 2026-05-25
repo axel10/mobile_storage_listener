@@ -6,6 +6,9 @@
 #include <sys/utsname.h>
 
 #include <cstring>
+#include <vector>
+#include <string>
+#include <algorithm>
 
 #include "mobile_storage_listener_plugin_private.h"
 
@@ -23,6 +26,7 @@ typedef struct {
   gulong mount_added_handler;
   gulong mount_removed_handler;
   gboolean listening;
+  std::vector<std::string> known_mounts;
 } StorageMonitorState;
 
 G_DEFINE_TYPE(MobileStorageListenerPlugin, mobile_storage_listener_plugin, g_object_get_type())
@@ -71,34 +75,54 @@ gchar *get_mount_path(GMount *mount) {
   return path;
 }
 
-void emit_mount_event(StorageMonitorState *state, const gchar *type, GMount *mount) {
-  if (state == nullptr || state->event_channel == nullptr || !state->listening) {
-    return;
-  }
-
-  if (!is_removable_mount(mount)) {
-    return;
-  }
-
-  g_autofree gchar *path = get_mount_path(mount);
-  g_autoptr(FlValue) event = create_storage_event(type, path);
-  g_autoptr(GError) error = nullptr;
-
-  if (!fl_event_channel_send(state->event_channel, event, nullptr, &error)) {
-    g_warning("Failed to send storage event: %s", error->message);
-  }
-}
-
 void mount_added_cb(GVolumeMonitor *monitor, GMount *mount, gpointer user_data) {
   (void)monitor;
   auto *state = static_cast<StorageMonitorState *>(user_data);
-  emit_mount_event(state, "mounted", mount);
+  if (!state->listening) {
+    return;
+  }
+
+  if (is_removable_mount(mount)) {
+    gchar *path = get_mount_path(mount);
+    if (path != nullptr) {
+      std::string path_str(path);
+      auto it = std::find(state->known_mounts.begin(), state->known_mounts.end(), path_str);
+      if (it == state->known_mounts.end()) {
+        state->known_mounts.push_back(path_str);
+
+        g_autoptr(FlValue) event = create_storage_event("mounted", path);
+        g_autoptr(GError) error = nullptr;
+        if (!fl_event_channel_send(state->event_channel, event, nullptr, &error)) {
+          g_warning("Failed to send storage event: %s", error->message);
+        }
+      }
+      g_free(path);
+    }
+  }
 }
 
 void mount_removed_cb(GVolumeMonitor *monitor, GMount *mount, gpointer user_data) {
   (void)monitor;
   auto *state = static_cast<StorageMonitorState *>(user_data);
-  emit_mount_event(state, "unmounted", mount);
+  if (!state->listening) {
+    return;
+  }
+
+  gchar *path = get_mount_path(mount);
+  if (path != nullptr) {
+    std::string path_str(path);
+    auto it = std::find(state->known_mounts.begin(), state->known_mounts.end(), path_str);
+    if (it != state->known_mounts.end()) {
+      state->known_mounts.erase(it);
+
+      g_autoptr(FlValue) event = create_storage_event("unmounted", path);
+      g_autoptr(GError) error = nullptr;
+      if (!fl_event_channel_send(state->event_channel, event, nullptr, &error)) {
+        g_warning("Failed to send storage event: %s", error->message);
+      }
+    }
+    g_free(path);
+  }
 }
 
 FlMethodErrorResponse *listen_cb(FlEventChannel *channel, FlValue *args, gpointer user_data) {
@@ -109,6 +133,21 @@ FlMethodErrorResponse *listen_cb(FlEventChannel *channel, FlValue *args, gpointe
 
   if (state->volume_monitor == nullptr) {
     state->volume_monitor = g_volume_monitor_get();
+
+    // Populate already mounted removable volumes
+    GList *mounts = g_volume_monitor_get_mounts(state->volume_monitor);
+    for (GList *l = mounts; l != nullptr; l = l->next) {
+      auto *mount = static_cast<GMount *>(l->data);
+      if (is_removable_mount(mount)) {
+        gchar *path = get_mount_path(mount);
+        if (path != nullptr) {
+          state->known_mounts.push_back(path);
+          g_free(path);
+        }
+      }
+    }
+    g_list_free_full(mounts, g_object_unref);
+
     state->mount_added_handler = g_signal_connect(
         state->volume_monitor, "mount-added", G_CALLBACK(mount_added_cb), state);
     state->mount_removed_handler = g_signal_connect(
@@ -135,6 +174,7 @@ FlMethodErrorResponse *cancel_cb(FlEventChannel *channel, FlValue *args, gpointe
     }
     g_clear_object(&state->volume_monitor);
   }
+  state->known_mounts.clear();
 
   return nullptr;
 }
@@ -158,6 +198,7 @@ void storage_monitor_state_free(gpointer data) {
     }
     g_clear_object(&state->volume_monitor);
   }
+  state->known_mounts.clear();
 
   delete state;
 }
