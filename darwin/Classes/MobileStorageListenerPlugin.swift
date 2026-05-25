@@ -1,11 +1,23 @@
+#if os(iOS)
+import Flutter
+import UIKit
+import AVFoundation
+#elseif os(macOS)
 import Cocoa
 import FlutterMacOS
+#endif
 
 public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var eventSink: FlutterEventSink?
+
+  #if os(macOS)
   private var mountObserver: NSObjectProtocol?
   private var unmountObserver: NSObjectProtocol?
   private var knownDrives = Set<String>()
+  #elseif os(iOS)
+  private var discoverySessionObserver: NSKeyValueObservation?
+  private var knownDevices = Set<String>()
+  #endif
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let methodChannel = FlutterMethodChannel(
@@ -27,7 +39,11 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
   ) {
     switch call.method {
     case "getPlatformVersion":
+      #if os(iOS)
+      result("iOS " + UIDevice.current.systemVersion)
+      #elseif os(macOS)
       result("macOS " + ProcessInfo.processInfo.operatingSystemVersionString)
+      #endif
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -38,18 +54,33 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
     eventSink events: @escaping FlutterEventSink
   ) -> FlutterError? {
     eventSink = events
+    #if os(macOS)
     populateKnownDrives()
     startObserving()
+    #elseif os(iOS)
+    if #available(iOS 17.0, *) {
+      populateKnownDevices()
+      startObserving()
+    }
+    #endif
     return nil
   }
 
   public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    #if os(macOS)
     stopObserving()
     knownDrives.removeAll()
+    #elseif os(iOS)
+    if #available(iOS 17.0, *) {
+      stopObserving()
+      knownDevices.removeAll()
+    }
+    #endif
     eventSink = nil
     return nil
   }
 
+  #if os(macOS)
   private func populateKnownDrives() {
     knownDrives.removeAll()
     let keys: [URLResourceKey] = [.volumeIsRemovableKey, .volumeIsInternalKey, .volumeIsLocalKey]
@@ -139,4 +170,65 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
       }
     }
   }
+  #endif
+
+  #if os(iOS)
+  @available(iOS 17.0, *)
+  private func populateKnownDevices() {
+    knownDevices.removeAll()
+    guard AVExternalStorageDeviceDiscoverySession.isSupported,
+          let session = AVExternalStorageDeviceDiscoverySession.shared else {
+      return
+    }
+    for device in session.externalStorageDevices {
+      if let uuidString = device.uuid?.uuidString {
+        knownDevices.insert(uuidString)
+      }
+    }
+  }
+
+  @available(iOS 17.0, *)
+  private func startObserving() {
+    guard AVExternalStorageDeviceDiscoverySession.isSupported,
+          let session = AVExternalStorageDeviceDiscoverySession.shared else {
+      return
+    }
+    
+    discoverySessionObserver = session.observe(\.externalStorageDevices, options: [.new]) { [weak self] session, change in
+      self?.handleDeviceChange(session.externalStorageDevices)
+    }
+  }
+
+  @available(iOS 17.0, *)
+  private func stopObserving() {
+    discoverySessionObserver = nil
+  }
+
+  @available(iOS 17.0, *)
+  private func handleDeviceChange(_ currentDevices: [AVExternalStorageDevice]) {
+    guard let eventSink else {
+      return
+    }
+
+    let currentUUIDs = Set(currentDevices.compactMap { $0.uuid?.uuidString })
+
+    let mountedUUIDs = currentUUIDs.subtracting(knownDevices)
+    for uuid in mountedUUIDs {
+      knownDevices.insert(uuid)
+      eventSink([
+        "type": "mounted",
+        "path": uuid,
+      ])
+    }
+
+    let unmountedUUIDs = knownDevices.subtracting(currentUUIDs)
+    for uuid in unmountedUUIDs {
+      knownDevices.remove(uuid)
+      eventSink([
+        "type": "unmounted",
+        "path": uuid,
+      ])
+    }
+  }
+  #endif
 }

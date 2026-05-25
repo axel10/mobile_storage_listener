@@ -37,10 +37,14 @@ flutter:
       android:
         package: com.example.mobile_storage_listener
         pluginClass: MobileStorageListenerPlugin
+      ios:
+        pluginClass: MobileStorageListenerPlugin
+        sharedDarwinSource: true
       linux:
         pluginClass: MobileStorageListenerPlugin
       macos:
         pluginClass: MobileStorageListenerPlugin
+        sharedDarwinSource: true
       windows:
         pluginClass: MobileStorageListenerPluginCApi
 
