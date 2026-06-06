@@ -20,13 +20,19 @@ public class MobileStorageListenerPlugin: NSObject, FlutterPlugin, FlutterStream
   #endif
 
   public static func register(with registrar: FlutterPluginRegistrar) {
+    #if os(iOS)
+    let messenger = registrar.messenger()
+    #else
+    let messenger = registrar.messenger
+    #endif
+
     let methodChannel = FlutterMethodChannel(
       name: "mobile_storage_listener",
-      binaryMessenger: registrar.messenger
+      binaryMessenger: messenger
     )
     let eventChannel = FlutterEventChannel(
       name: "mobile_storage_listener/events",
-      binaryMessenger: registrar.messenger
+      binaryMessenger: messenger
     )
     let instance = MobileStorageListenerPlugin()
     registrar.addMethodCallDelegate(instance, channel: methodChannel)
