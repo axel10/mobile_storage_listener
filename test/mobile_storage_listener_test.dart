@@ -12,7 +12,7 @@ class MockMobileStorageListenerPlatform
   Future<String?> getPlatformVersion() => Future.value('42');
 
   @override
-  Stream<MobileStorageEvent> storageEvents() => Stream.value(
+  Stream<MobileStorageEvent> storageEvents({bool detectInternalVolumes = true}) => Stream.value(
     const MobileStorageEvent(
       type: MobileStorageEventType.mounted,
       path: '/storage/1234-5678',

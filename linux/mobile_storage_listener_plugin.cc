@@ -27,34 +27,41 @@ typedef struct {
   gulong mount_removed_handler;
   gboolean listening;
   std::vector<std::string> known_mounts;
+  gboolean detect_internal_volumes;
 } StorageMonitorState;
 
 G_DEFINE_TYPE(MobileStorageListenerPlugin, mobile_storage_listener_plugin, g_object_get_type())
 
 namespace {
 
-gboolean is_removable_mount(GMount *mount) {
+gboolean is_removable_mount(GMount *mount, gboolean detect_internal_volumes) {
   if (mount == nullptr) {
     return FALSE;
   }
 
   GVolume *volume = g_mount_get_volume(mount);
   gboolean removable = FALSE;
+  gboolean has_volume_or_drive = FALSE;
 
   if (volume != nullptr) {
+    has_volume_or_drive = TRUE;
     GDrive *drive = g_volume_get_drive(volume);
     if (drive != nullptr) {
       removable = g_drive_is_removable(drive) || g_drive_is_media_removable(drive);
       g_object_unref(drive);
     }
     g_object_unref(volume);
-    return removable;
+  } else {
+    GDrive *drive = g_mount_get_drive(mount);
+    if (drive != nullptr) {
+      has_volume_or_drive = TRUE;
+      removable = g_drive_is_removable(drive) || g_drive_is_media_removable(drive);
+      g_object_unref(drive);
+    }
   }
 
-  GDrive *drive = g_mount_get_drive(mount);
-  if (drive != nullptr) {
-    removable = g_drive_is_removable(drive) || g_drive_is_media_removable(drive);
-    g_object_unref(drive);
+  if (detect_internal_volumes) {
+    return has_volume_or_drive;
   }
 
   return removable;
@@ -82,7 +89,7 @@ void mount_added_cb(GVolumeMonitor *monitor, GMount *mount, gpointer user_data) 
     return;
   }
 
-  if (is_removable_mount(mount)) {
+  if (is_removable_mount(mount, state->detect_internal_volumes)) {
     gchar *path = get_mount_path(mount);
     if (path != nullptr) {
       std::string path_str(path);
@@ -127,9 +134,17 @@ void mount_removed_cb(GVolumeMonitor *monitor, GMount *mount, gpointer user_data
 
 FlMethodErrorResponse *listen_cb(FlEventChannel *channel, FlValue *args, gpointer user_data) {
   (void)channel;
-  (void)args;
   auto *state = static_cast<StorageMonitorState *>(user_data);
   state->listening = TRUE;
+
+  gboolean detect_internal_volumes = TRUE;
+  if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+    FlValue *val = fl_value_lookup_string(args, "detectInternalVolumes");
+    if (val != nullptr && fl_value_get_type(val) == FL_VALUE_TYPE_BOOL) {
+      detect_internal_volumes = fl_value_get_bool(val);
+    }
+  }
+  state->detect_internal_volumes = detect_internal_volumes;
 
   if (state->volume_monitor == nullptr) {
     state->volume_monitor = g_volume_monitor_get();
@@ -138,7 +153,7 @@ FlMethodErrorResponse *listen_cb(FlEventChannel *channel, FlValue *args, gpointe
     GList *mounts = g_volume_monitor_get_mounts(state->volume_monitor);
     for (GList *l = mounts; l != nullptr; l = l->next) {
       auto *mount = static_cast<GMount *>(l->data);
-      if (is_removable_mount(mount)) {
+      if (is_removable_mount(mount, state->detect_internal_volumes)) {
         gchar *path = get_mount_path(mount);
         if (path != nullptr) {
           state->known_mounts.push_back(path);

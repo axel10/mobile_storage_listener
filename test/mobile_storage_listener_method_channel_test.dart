@@ -50,4 +50,31 @@ void main() {
     expect(event.type, MobileStorageEventType.mounted);
     expect(event.path, '/storage/1234-5678');
   });
+
+  test('storageEvents passes detectInternalVolumes argument', () async {
+    dynamic receivedArgs;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+          eventChannel,
+          MockStreamHandler.inline(
+            onListen: (arguments, eventSink) {
+              receivedArgs = arguments;
+              eventSink.success({
+                'type': 'mounted',
+                'path': '/storage/1234-5678',
+              });
+            },
+          ),
+        );
+
+    await platform.storageEvents(detectInternalVolumes: false).first;
+    expect(receivedArgs, {
+      'detectInternalVolumes': false,
+    });
+
+    await platform.storageEvents(detectInternalVolumes: true).first;
+    expect(receivedArgs, {
+      'detectInternalVolumes': true,
+    });
+  });
 }

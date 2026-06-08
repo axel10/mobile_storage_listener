@@ -9,4 +9,10 @@ class MobileStorageListener {
   Stream<MobileStorageEvent> get storageEvents {
     return MobileStorageListenerPlatform.instance.storageEvents();
   }
+
+  Stream<MobileStorageEvent> storageEventsWithOptions({bool detectInternalVolumes = true}) {
+    return MobileStorageListenerPlatform.instance.storageEvents(
+      detectInternalVolumes: detectInternalVolumes,
+    );
+  }
 }

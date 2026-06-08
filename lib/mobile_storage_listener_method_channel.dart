@@ -22,8 +22,10 @@ class MethodChannelMobileStorageListener extends MobileStorageListenerPlatform {
   }
 
   @override
-  Stream<MobileStorageEvent> storageEvents() {
-    return eventChannel.receiveBroadcastStream().map((event) {
+  Stream<MobileStorageEvent> storageEvents({bool detectInternalVolumes = true}) {
+    return eventChannel.receiveBroadcastStream({
+      'detectInternalVolumes': detectInternalVolumes,
+    }).map((event) {
       if (event is Map<Object?, Object?>) {
         return MobileStorageEvent.fromMap(event);
       }

@@ -29,7 +29,7 @@ abstract class MobileStorageListenerPlatform extends PlatformInterface {
     throw UnimplementedError('platformVersion() has not been implemented.');
   }
 
-  Stream<MobileStorageEvent> storageEvents() {
+  Stream<MobileStorageEvent> storageEvents({bool detectInternalVolumes = true}) {
     throw UnimplementedError('storageEvents() has not been implemented.');
   }
 }
